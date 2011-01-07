@@ -1,0 +1,520 @@
+<?php
+
+/**
+ * WindowsLiveID module implements Windows Live Authentication from Drupal and 
+ * Windows Live ID user association with Drupal site account.
+ *
+ * @version     $Id: windowslive.module $
+ * @copyright   Copyright (c) 2010 Schakra, Inc. All Rights Reserved.
+ * @license     http://www.gnu.org/licenses/gpl-2.0.html
+ * @package     Drupal
+ * @subpackage  WindowsLiveID
+ * @since       1.0
+ */
+
+/**
+ * Include the abstract class for Windows Live Log in User.
+ */
+require_once(dirname(__FILE__).'/'.'windowslivelogin.php');
+
+/**
+ * Implements hook_menu().
+ * 
+ * The different menu options and their page callback,arguments defined.
+ */
+function windowslive_menu() {
+
+    $items = array();
+    
+    /**
+     * The Windows Live handler defined
+     */
+    $items['windowslive/handler'] = array(
+        'title'             => 'Windows Live Handler',
+        'page callback'     => 'windowslive_handler',
+        'access callback'   => TRUE,
+        'hidden'            => 1
+    );  
+
+    /**
+     * The Windows Live user identity handler defined
+     */
+    $items['user/%user/windowslive'] = array(
+        'title'             => 'Windows Live Identity',
+        'page callback'     => 'windowslive_set_user_identity',
+        'page arguments'    => array(1),
+        'access callback'   => 'user_edit_access',
+        'access arguments'  => array(1),
+        'type'              => MENU_LOCAL_TASK
+    );
+    
+    /**
+     * The Windows Live user identity delete handler defined
+     */
+    $items['user/%user/windowslive/delete'] = array(
+        'title'             => 'Delete Windows Live ID',
+        'page callback'     => 'drupal_get_form',
+        'page arguments'    => array('windowslive_user_delete_form', 1),
+        'access callback'   => 'user_edit_access',
+        'access arguments'  => array(1),
+    );
+    
+    /**
+    * The admin config update handler
+    */
+    $items['admin/config/windowslive'] = array(
+        'title'             => 'Windows Live Settings',
+        'description'       => 'Configuration for the WindowsLiveID module.',
+        'page callback'     => 'drupal_get_form',
+        'page arguments'    => array('windowslive_config_form'),
+        'access arguments'  => array('administer users'),
+    );
+  
+  return $items;
+}
+
+/**
+ * Implements hook_help().
+ */
+function windowslive_help($path, $arg) {
+    switch ($path) {
+        case 'user/%/windowslive':
+            $output = '<p>' . t('You may login to this site using Window Live ID once you activate it. To set this up, you can click on the below <em>Activate Windows Live ID</em> link to enable your account to use Windows Live ID login to this site. Once you login in using Windows Live ID, your Windows Live ID will be associated with your site account and you will be able to login into this site using your Windows Live ID. The <em>Activate Windows Live ID</em> link will be hidden if you have at least one Windows Live ID account associated with your site account.<p>If you already have a Windows Live ID account associated with the site account and would like to delete the association, use the <em>Delete</em> link under <em>Operations</em> of the corresponding Windows Live ID.') . '</p>';
+            return $output;
+        case 'admin/help#windowslive':
+            $output  = '';
+            $output .= '<h3>' . t('About') . '</h3>';
+            $output .= '<p>'  . t('The WindowsLiveID module allows users to login to site using their Windows Live ID account. This module will associate the site account with the unqiue ID returned by Windows Live Services for the Windows Live ID user for future login.') . '</p>';
+            $output .= '<h3>' . t('Uses') . '</h3>';
+            $output .= '<dl>';
+            $output .= '<dt>' . t('Windows Live Settings') . '</dt>';
+            $output .= '<dd>' . t('To use WindowsLiveID module, admin must register a Windows Live Application in <a href="@windowslive_app_manage_site" target=_blank>Windows Live Application Management site</a> and set the vaules for Client ID and Secret Key.', array('@windowslive_app_manage_site' => 'http://go.microsoft.com/fwlink/?LinkID=144070')) . '</dd>';
+            
+            $output .= '<dt>' . t('Log in in with Windows Live ID') . '</dt>';
+            $output .= '<dd>' . t("To log in using Windows Live ID, a user must already have an account in the site. Users can then assign one or more Windows Live IDs with their existing site account, and log in using their Windows Live ID. When logged in using site account, users are presented with the option of activating their Windows Live ID account. The site will communicate with the Windows Live Service to obtain the unique ID to associate Windows Live ID user with site account. Users has the option to remove the existing association of a Windows Live ID with site account is also present. Once the Windows Live ID account is  associated, users can login to site using their Windows Live ID account. The site then communicates with the Windows Live Service to verify the user.") . '</dd>';
+            $output .= '</dl>';
+            return $output;
+    }
+}
+
+/**
+ * Implements hook_config_form
+ */
+function windowslive_config_form() {
+    
+    // Text field for Client ID
+    $form['windowslive_clientid'] = array(
+        '#type'          => 'textfield',
+        '#default_value' => variable_get('windowslive_clientid', ''),
+        '#title'         => t('WindowsLive Client ID'),
+        '#description'   => t('ClientID of your Windows Live application.'),
+        '#size'          => 40,
+        '#maxlength'     => 120,
+        '#required'      => TRUE
+    );
+    
+    // Text field for Secret Key
+    $form['windowslive_secretkey'] = array(
+        '#type'          => 'textfield',
+        '#default_value' => variable_get('windowslive_secretkey', ''),
+        '#title'         => t('WindowsLive Secret Key'),
+        '#description'   => t('Secret Key of your Windows Live application.'),
+        '#size'          => 40,
+        '#maxlength'     => 120,
+        '#required'      => TRUE
+    );
+    
+    // Submit button
+    $form['submit'] = array(
+        '#type'  => 'submit',
+        '#value' => t('Save settings')
+    );
+    
+    return $form;
+}
+
+/**
+ * Implements if the WindowsLiveID configuration is validated
+ */
+function windowslive_validated() {
+  // TODO: windowslive_validated is getting set to TRUE despite no form post, investigate
+  // to see if unsuccessful posts still set value
+  $a = variable_get('windowslive_clientid');
+  $b = variable_get('windowslive_secretkey');
+
+  variable_set('windowslive_validated', ($a && $b));
+
+  return variable_get('windowslive_validated', FALSE);
+}
+
+/**
+ * Determine if the ADFS login link is accessible.
+ *
+ * This is a menu access callback.
+ */
+function windowslive_login_accessible() {
+  return windowslive_validated() && user_is_anonymous();
+}
+
+/**
+ * Implements configuration saving for WindowsLiveID module
+ */
+function windowslive_config_form_submit(&$form, &$form_state) {
+     variable_set('windowslive_clientid',
+             $form_state['values']['windowslive_clientid']);
+     variable_set('windowslive_secretkey',
+             $form_state['values']['windowslive_secretkey']);     
+     
+     drupal_set_message(t('Your WindowsLiveID module configuration option have been saved.'));
+}
+
+/**
+ * Implements hook_user_insert().
+ * 
+ * Associate the Drupal User Id and Windows Live ID in the session for insert operation.
+ */
+function windowslive_user_insert(&$edit, $account, $category = NULL) {
+    if (isset($_SESSION['windowslive_login'] )) {
+        db_insert('authmap')
+          ->fields(array(
+            'uid'       =>$account->uid,
+            'authname'  => $_SESSION['windowslive_login'],
+            'module'    => 'windowslive',
+          ))
+          ->execute();
+        $_SESSION['windowslive_account_register'] = TRUE;        
+    }
+}
+
+/**
+ * Implements hook_user_login().
+ * 
+ * Associate the Drupal User Id and Windows Live ID in the session for login operation.
+ *  
+ */
+function windowslive_user_login(&$edit, $account) {
+    
+    if (!isset($_SESSION['windowslive_account_register'])) {
+        if (isset($_SESSION['windowslive_login_activate'])) {
+            db_insert('authmap')
+              ->fields(array(
+                'uid'       => $account->uid,
+                'authname'  => $_SESSION['windowslive_login'],
+                'module'    => 'windowslive',              
+              ))
+              ->execute();        
+            drupal_set_message('Your account has been activated for Windows Live Login.');
+            unset($_SESSION['windowslive_login_activate']);
+        }        
+    }
+}
+
+/**
+ * Implements hook_user_logout().
+ * 
+ * Unset the Windows Live ID login session for user who logged into Drupal site using Windows Live ID
+ * and redirect to logout for logout operation.
+ * 
+ */
+function windowslive_user_logout($account) {
+    if (isset($_SESSION['windowslive_login'])) {
+        unset($_SESSION['windowslive_login']);
+        drupal_goto('user/logout');        
+    }    
+}
+
+/**
+ * Implements hook_form_FORM_ID_alter().
+ * 
+ * Implements the hook for user_login_block alter
+ */
+function windowslive_form_user_login_block_alter(&$form, &$form_state) {
+    _windowslive_user_login_form_alter($form, $form_state);
+}
+
+/**
+ * Implements hook_form_FORM_ID_alter().
+ * 
+ * Implements the hook for user_login alter
+ */
+function windowslive_form_user_login_alter(&$form, &$form_state) {
+    _windowslive_user_login_form_alter($form, $form_state);
+}
+
+/**
+ * Implements hook_form_alter().
+ * 
+ * Adds the Windows Live ID login to the login form.
+ */
+function _windowslive_user_login_form_alter(&$form, $form_state) {
+    // If administrator has not configured the module then do not modify login form
+    if (!windowslive_login_accessible()) {
+        return;
+    }
+    
+    $form['#attached']['css'][] = drupal_get_path('module', 'windowslive') . '/windowslive.css';
+        
+    $obj_windowslive_authentication = get_windowslive_authentication_object();
+    global $base_path;    
+    
+    $items = array();
+    $items[] = array(
+        'data' => l(t('Log in using Windows Live ID'), $obj_windowslive_authentication->getLoginUrl($base_path)),
+        'class' => array('windowslive-link'),
+    );
+
+    $form['windowslive_links'] = array(
+        '#theme' => 'item_list',
+        '#items' => $items,
+        '#attributes' => array('class' => array('windowslive-links')),
+        '#weight' => 1,
+    );
+
+    $form['windowslive.return_to'] = array('#type' => 'hidden', '#value' => url('/', array('absolute' => TRUE, 'query' => user_login_destination())));   
+}
+
+/**
+ * Implements hook_form_FORM_ID_alter().
+ * 
+ * Adds the site registration form.
+ */
+function windowslive_form_user_register_form_alter(&$form, &$form_state) {
+    if (isset($_SESSION['windowslive_login'] )) {
+        $form['message'] = array(
+            '#type'     => 'item',
+            '#markup'   => t('Select a profile name and enter in your email address below to continue with registration. You will be able to login with through Windows Live ID after your successful registration.'),
+            '#weight'   => -10);       
+        
+        // If user_email_verification is off, hide the password field and just fill
+        // with random password to avoid confusion.
+        if (!variable_get('user_email_verification', TRUE)) {
+            $form['account']['pass']['#type'] = 'hidden';
+            $form['account']['pass']['#value'] = user_password();
+        }
+        $form['windowslive_auth'] = array('#type' => 'hidden', '#value' => $_SESSION['windowslive_login']);
+    }
+    return $form;    
+}
+
+/**
+ * Implements Windows Live Id authentication page
+ * 
+ * User will reach here after a successful login at Windows Live Service page
+ * 
+ * Case 1: If the user logged in to the Drupal site and want to associate the Windows Live ID then 
+ *         the windowslive_set_user_identity will be processed.
+ * 
+ * Case 2: If the user not logged into the Drupal site and want to login using the associated Windows Live ID then
+ *         the windowslive_user_authenticate will be processed.
+ *
+ * @param   string  $userid the unique ID of the Windows Live User returned by the Windows Live Service
+ * @return  form    page    administration information on Windows Live ID or the target from the login page.
+ * 
+ **/
+function windowslive_authentication_page($userid) {
+    drupal_set_message(t('Windows Live ID successfully verified.'));
+    global $user;
+    if ($user->uid) {
+        return windowslive_set_user_identity($user, $userid);
+    } else {
+        return windowslive_user_authenticate($userid);
+    }
+}
+
+/**
+ * Implements Windows Live ID association with the current Drupal User ID.
+ * 
+ * 
+ * Associate the unique ID of the Windows Live User returned by the Windows Live Service with the current user.
+ * 
+ * @param   $account    User ID that is being "administered".
+ * @param   $userid     Unique ID of the Windows Live User returned by the Windows Live Service with the current user.
+ * @return  HTML        HTML that includes the currently associated Windows Live ID with the current user and instructions on how to manage it.
+ */
+function windowslive_set_user_identity($account, $userid=NULL) {
+    if ($userid) {
+        
+        // Ensure that the unique ID of the Windows Live User returned by the Windows Live Service for the current user 
+        // is no longer exists in the authmap table.
+        $exists = db_query("SELECT uid FROM {authmap} WHERE module='windowslive' AND authname = :authname", array(':authname' => $userid))->fetchField();
+        
+        // If the unique ID does not exists then associate the ID with Drupal User ID.
+        if ($exists === FALSE) {
+            db_insert('authmap')
+              ->fields(array(
+                'uid'        => $account->uid,
+                'authname'   => $userid,
+                'module'     => 'windowslive',
+              ))
+              ->execute();	
+            drupal_set_message(t('Your account has been activated for Windows Live Log in.'));
+        } elseif ($account->uid != $exists)  { 
+            // Inform the Drupal User that the current Windows Live ID returned by the Windows Live Service already associated with a different user.                                     
+            drupal_set_message(t('Provided Windows Live ID already mapped with a different user in this site. Please use a different Windows Live ID.'), 'error');
+        } else { 
+            // This Windows Live ID account already associated with the current Drupal User.
+            drupal_set_message(t('Your account is enabled for you to log in with Windows Live ID'));
+        }
+    }
+    
+    // Display the existing associated Windows Live ID account(s) for the current Drupal User.
+    $header = array(
+        t('Windows Live ID'),
+        t('Operations')
+    );
+    
+    $rows = array();
+    
+    // Retrieve the existing associated Windows Live ID account(s) for the current Drupal User from authmap table based on Drupal User ID. 
+    $result = db_query("SELECT * FROM {authmap} WHERE module='windowslive' AND uid = :uid", array(':uid' => $account->uid));
+    
+    foreach ($result as $identity) {
+        $rows[] = array($identity->authname, l(t('Delete'), 'user/'. $account->uid .'/windowslive/delete/'.  $identity->aid));
+    }
+
+    $output = theme('table', array('header' => $header, 'rows' => $rows));
+    
+    // If there is no Windows Live ID account(s) associated with the current Drupal User then display the appropriate message and 
+    // display the link to 'Activate Windows Live ID'
+    if (!$rows) {
+        $output .= t('You can click on the below link to enable your account to use Windows Live ID log in to this site.<br/>');
+        $output .= windowslive_user_activate_link(t('Activate Windows Live ID'));
+    }    
+    
+    return $output;
+}
+
+/**
+ * Implements Windows Live ID Log in URL for a logged in Drupal user.
+ * 
+ * Return the link to Windows Live ID Log in
+ * 
+ * @param   $linktext   Text to display with the link
+ * @return  HTML        html <A href=..> to url link
+ */
+function windowslive_user_activate_link($linktext='') {
+    $obj_windowslive_authentication = get_windowslive_authentication_object();
+    global $base_path;
+    return l($linktext, $obj_windowslive_authentication->getLoginUrl($base_path));
+}
+
+/**
+ * Implements Windows Live ID Delete form
+ * 
+ * Return the link to Windows Live ID Delete
+ * @param   $form           $form
+ * @param   $form_state     $form_state
+ * @param   $account        site account
+ * @param   $aid            auto increment primary key
+ * @return  confirm_ form   Returns the confirm form for Windows Live ID Delete
+ */
+function windowslive_user_delete_form($form, $form_state, $account, $aid = 0) {
+    $authname = db_query("SELECT authname FROM {authmap} WHERE uid = :uid AND aid = :aid AND module = 'windowslive'", array(
+        ':uid' => $account->uid,
+        ':aid' => $aid,
+        ))
+        ->fetchField();
+    return confirm_form(array(),t('Are you sure that you want to delete this?'), 'user/' . $account->uid . '/windowslive');
+}
+
+/**
+ * Implements Windows Live ID Delete confirm form
+ * 
+ * Deletes the selected association and set the form_state back to 'Windows Live Identitiy'
+ */
+function windowslive_user_delete_form_submit($form, &$form_state) {
+    $query = db_delete('authmap')
+        ->condition('uid', $form_state['build_info']['args'][0]->uid)
+        ->condition('aid', $form_state['build_info']['args'][1])
+        ->condition('module', 'windowslive')
+        ->execute();
+    if ($query) {
+        drupal_set_message(t('Windows Live ID deleted.'));
+    }
+    $form_state['redirect'] = 'user/' . $form_state['build_info']['args'][0]->uid . '/windowslive';
+}
+
+/**
+ * Implements Windows Live ID authentication and registration
+ * 
+ * Authenticate a user based on the Windows Live ID or attempt registration.
+ *
+ * @param   $identity   Unique ID returned by Windows Live Service for the Windows Live ID account.
+ */
+function windowslive_user_authenticate($identity) {
+    
+    $account = user_external_load($identity);
+    
+    // If site could load the user then check if they completed the registration process.
+    if (isset($account->uid)) {
+        if (!variable_get('user_email_verification', TRUE) || $account->login) {
+            $form_state['uid'] = $account->uid;
+            user_login_submit(array(), $form_state);
+        } else {
+            drupal_set_message(t('You must validate your email address for this account before logging in via Windows Live.'));
+            unset($_SESSION['windowslive_login']);
+        }
+    } else {
+        // if site could not load the user then redirect the user to login with the site using their site account or register a new one.
+        $_SESSION['windowslive_login_activate'] = TRUE;
+        drupal_set_message("Although your Windows Live Log in was verified, you are not authorized to login to this site using your Windows Live ID. You have two options:<br/><ul><li>If you already have an existing account on this website, then please ". l(t('login'), 'user/login') ." with your existing site account credentials to activate Windows Live ID Log in.<li>If you never had an account at this website, then please ". l(t('create'), 'user/register') ." one account. After an account has been created, then you can associate it with a Windows Live ID.</ul>");
+    }
+    drupal_goto();
+}
+
+/**
+ * Implements Windows Live Handler
+ * 
+ * This handler that calls the Windows Live Services with appropriate
+ * get or post parameters. Make sure to provide the path to this handler
+ * is specified in the target URL which registers in the Windows Live Services.
+ **/
+function windowslive_handler() {
+    
+    $obj_windowslive_authentication = get_windowslive_authentication_object();
+    $windowslive_action = $_REQUEST['action'];
+  
+    switch ($windowslive_action) {
+    case 'logout':
+        unset($_SESSION['windowslive_login']);
+        drupal_goto('user/logout');
+        break;
+    
+    case 'clearcookie':
+        list($type, $response) = $obj_windowslive_authentication->getClearCookieResponse();
+        unset($_SESSION['windowslive_login']);
+        /* Send a Gif header back. */
+        header("Content-type: $type");
+        print($response);      
+        ob_end_flush();
+        exit;
+        break;
+
+    default:
+        $windowslive_user = $obj_windowslive_authentication->processLogin($_REQUEST);
+        if ($windowslive_user) {
+            $windowslive_id = $windowslive_user->getId();
+            $_SESSION['windowslive_login'] = $windowslive_id;
+            return windowslive_authentication_page($windowslive_id);
+        } else {
+            drupal_set_message("Unable to authenticate you with Windows Live ID.");
+      }
+      break;
+    }
+    drupal_goto();
+}
+
+/**
+ * Initializes Windows Live Login
+ *  
+ * @return  Windows Live Authentication object.
+ */
+function get_windowslive_authentication_object() {
+    $obj_windowslive_authentication = new WindowsLiveLogin();
+    $obj_windowslive_authentication->setAppId(variable_get('windowslive_clientid'));
+    $obj_windowslive_authentication->setSecret(variable_get('windowslive_secretkey'));
+    $obj_windowslive_authentication->setSecurityAlgorithm('wsignin1.0');
+    //$obj_windowslive_authentication->setDebug(true);
+    
+    return $obj_windowslive_authentication;
+}

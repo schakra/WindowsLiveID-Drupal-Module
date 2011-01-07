@@ -1,0 +1,57 @@
+<?php
+/**
+ * This WindowsLiveID module install file implement the requirements check
+ * and hook for uninstall.
+ *
+ * @version     $Id: windowslive.install $
+ * @copyright   Copyright (c) 2010 Schakra, Inc. All Rights Reserved.
+ * @license     http://www.gnu.org/licenses/gpl-2.0.html
+ * @package     Drupal
+ * @subpackage  WindowsLiveID
+ * @since       1.0
+ */
+
+//Windows LIVE SDK needs 5.X
+define('WINDOWSLIVEID_MINIMUM_PHP', '5.0.0');
+
+/**
+ * Implements of hook_install
+ */
+function winliveid_install() {
+}
+
+/**
+ * Implements Windows Live ID requirements
+ * 
+ * Checking the available PHP version.
+ */
+function windowslive_requirements($phase) {
+    $requirements = array();
+    
+    if(!function_exists('version_compare') ) {
+        $requirements['version_compare'] = array(
+            'severity' => REQUIREMENT_ERROR,
+            'description' => t('WindowsLiveID requires PHP5 and above to work. The Windows Live ID SDK that this module depends on is provided by the Windows Live ID service and is only compatible with PHP5.'),
+        );              
+    } else if (version_compare(WINDOWSLIVEID_MINIMUM_PHP, phpversion()) > 0 ) {
+        $requirements['version_compare'] = array(
+            'severity' => REQUIREMENT_ERROR,
+            'description' => t('WindowsLiveID requires PHP5 and above to work. The Windows Live ID SDK that this module depends on is provided by the Windows Live ID service and is only compatible with PHP5.'),
+        );  
+    }
+    return $requirements;
+}
+
+/**
+ * Implements of hook_uninstall
+ * 
+ * Remove all the vaules in authmap table for module 'WindowsLiveID', during uninstallation.
+ */
+function windowslive_uninstall() {
+    db_delete('authmap')
+        ->condition('module', "windowslive")			
+        ->execute();
+        
+	variable_del('windowslive_clientid');
+    variable_del('windowslive_secretkey');
+}

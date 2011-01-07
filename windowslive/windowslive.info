@@ -1,0 +1,20 @@
+; @version     $Id: windowslive.info $
+; @copyright   Copyright (c) 2010 Schakra, Inc. All Rights Reserved.
+; @license     http://www.gnu.org/licenses/gpl-2.0.html
+; @package     Drupal
+; @subpackage  WindowsLiveID
+; @since       1.0
+
+name = WindowsLiveID
+description = "Allows users to log into your site using a Windows Live ID."
+version = VERSION
+package = Authentication
+core = 7.x
+files[] = windowslive.install
+files[] = windowslive.module
+configure = admin/config/windowslive
+
+; Information added by drupal.org packaging script on 2010-08-11
+version = "1.0"
+project = "windowslive"
+datestamp = "1281559292"
