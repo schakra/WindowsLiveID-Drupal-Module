@@ -8,7 +8,7 @@ identity.
 INSTALLATION
 ------------
 Prerequisites:
-1) Drupal7 installed and running
+1) Drupal7 installed and running 
 2) PHP 5.2 or above (also required by Drupal7).
 3) Access to an ADFS 2.0 server that can be configured for this site.
 
