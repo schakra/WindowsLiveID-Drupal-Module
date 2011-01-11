@@ -101,7 +101,13 @@ function windowslive_help($path, $arg) {
  * Implements hook_config_form
  */
 function windowslive_config_form() {
-    
+    // Label for link for creating ClientID and Secret Key
+    $form['windowslive_key_creation_link'] = array(
+        '#markup'        => variable_get('windowslive_key_creation_link',
+                            t("Enter ClientID and Secret Key of your Windows Live application. If you don't have one, you can get it from <a href='@url'>here</a>.",
+                            array('@url' => "http://go.microsoft.com/fwlink/?LinkID=144070")))
+    );
+
     // Text field for Client ID
     $form['windowslive_clientid'] = array(
         '#type'          => 'textfield',
@@ -126,8 +132,8 @@ function windowslive_config_form() {
     
     // Submit button
     $form['submit'] = array(
-        '#type'  => 'submit',
-        '#value' => t('Save settings')
+        '#type'          => 'submit',
+        '#value'         => t('Save settings')
     );
     
     return $form;
@@ -346,7 +352,7 @@ function windowslive_set_user_identity($account, $userid=NULL) {
                 'authname'   => $userid,
                 'module'     => 'windowslive',
               ))
-              ->execute();	
+              ->execute();
             drupal_set_message(t('Your account has been activated for Windows Live Log in.'));
         } elseif ($account->uid != $exists)  { 
             // Inform the Drupal User that the current Windows Live ID returned by the Windows Live Service already associated with a different user.                                     
@@ -457,7 +463,7 @@ function windowslive_user_authenticate($identity) {
     } else {
         // if site could not load the user then redirect the user to login with the site using their site account or register a new one.
         $_SESSION['windowslive_login_activate'] = TRUE;
-        drupal_set_message("Although your Windows Live Log in was verified, you are not authorized to login to this site using your Windows Live ID. You have two options:<br/><ul><li>If you already have an existing account on this website, then please ". l(t('login'), 'user/login') ." with your existing site account credentials to activate Windows Live ID Log in.<li>If you never had an account at this website, then please ". l(t('create'), 'user/register') ." one account. After an account has been created, then you can associate it with a Windows Live ID.</ul>");
+        drupal_set_message("Although your Windows Live Log in was verified, you are not authorized to login to this site using your Windows Live ID. You have two options:<br/><ul><li>If you already have an existing account on this website, please ". l(t('login'), 'user/login') ." with your existing site account credentials to activate Windows Live ID Log in.<li>If you never had an account at this website, please ". l(t('create'), 'user/register') ." an account and associate it with this Windows Live ID.</ul>");
     }
     drupal_goto();
 }
