@@ -11,7 +11,7 @@ Prerequisites:
 3) php 5.2.0 or above
 
 Installation Instructions:
-1. Download WindowsLiveID module for Drupal (WindowsLive Folder).
+1. Download WindowsLiveID module for Drupal
 2. Copy Module files
    -Create Module Directory <Drupal-install-Root-dir>/sites/all/modules/windowslive
    -copy module files to <Drupal-install-Root-dir>/sites/all/modules/windowslive
@@ -21,10 +21,19 @@ Installation Instructions:
    - Go to Windows Live Application Management Site (http://go.microsoft.com/fwlink/?LinkID=144070) from browser. 
    - Signin with Windows Live ID. If you don't have one, then create a new Windows Live ID for this application.
    - Add a web application with domain name. Keep a note of ClientId/AppId and SecretKey of this application.
-   - Set the ‘Return URL’ for your application in Windows Live Application Management Site to ‘webauth-handler.php’
-     <DrupalRootUrl>/sites/all/modules/windowslive/webauth-handler.php
+   - Provide additional settings for â€˜Return URLâ€™ by clicking on 'Essentials' link below the Client ID and Secret Key. Set 
+     the â€˜Return URLâ€™ for your application in Windows Live Application Management Site to â€˜webauth-handler.phpâ€™
+     e.g. If you are manually extracting module to <Drupal-install-Root-dir>/sites/all/modules/windowslive folder, then
+     this URL should be <DrupalRootUrl>/sites/all/modules/windowslive/webauth-handler.php
+
+     But if you are directly uploading the tarball/zipball from github repository using Drupal UI, then the URL 
+     should be <DrupalRootUrl>/sites/all/modules/<TarZipballFileNameWithoutExtension>/webauth-handler.php
 
 <DrupalRootUrl> is the root http URL of Drupal installation. Ex: http://myhostname/Drupal7
+<TarZipballFileNameWithoutExtension> is the file name of your github tarball/zipball without extension. 
+e.g. When you download tarball/zipball from github, gutgub generates file name like 
+schakra-WindowsLiveID-Drupal-Module-428f9e3.zip and TarZipballFileNameWithoutExtension will be 
+schakra-WindowsLiveID-Drupal-Module-428f9e3
 
 4. Enable and configure WindowsLiveID Module in Drupal.
   - Login to Drupal as Admin.
@@ -35,13 +44,13 @@ Installation Instructions:
 USAGE
 -----
 1)User Login  
-    - Clicking on ‘Log in using Windows Live ID’ link will take the user to Windows Live authentication page if user not logged in yet.
+    - Clicking on â€˜Log in using Windows Live IDâ€™ link will take the user to Windows Live authentication page if user not logged in yet.
     - After the user logins successfully on the Windows Live page, the Windows Live Service will automatically redirect the user back to the Drupal web site.
-	- User can login and associate the Windows Live ID, if they have a Drupal account before.
-        - User can register and login with the Windows Live ID, once the site administrator approves the request and user validates drupal account.
-2) Administring WindowsLiveId Module
-	- In addition to managing the Installation settings the Administer can,
-    - From the User Account page Remove existing identities (Association with windows liveid)
+    - User can login and associate the Windows Live ID, if they have a Drupal account before.
+    - User can register and login with the Windows Live ID, once the site administrator approves the request and user validates Drupal account.
+2) Administering WindowsLiveId Module
+    - In addition to managing the Installation settings the Administer can,
+    - From the User Account page Remove existing identities (Association with Windows Live ID)
 
 LIMITATIONS AND KNOWN ISSUES
 ----------------------------
