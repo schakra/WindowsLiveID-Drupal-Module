@@ -52,7 +52,7 @@ function windowslive_menu() {
      * The Windows Live user identity delete handler defined
      */
     $items['user/%user/windowslive/delete'] = array(
-        'title'             => 'Delete Windows Live ID',
+        'title'             => 'Windows Live ID association removed',
         'page callback'     => 'drupal_get_form',
         'page arguments'    => array('windowslive_user_delete_form', 1),
         'access callback'   => 'user_edit_access',
@@ -362,30 +362,23 @@ function windowslive_set_user_identity($account, $userid=NULL) {
             drupal_set_message(t('Your account is enabled for you to log in with Windows Live ID'));
         }
     }
-    
-    // Display the existing associated Windows Live ID account(s) for the current Drupal User.
-    $header = array(
-        t('Windows Live ID'),
-        t('Operations')
-    );
-    
-    $rows = array();
-    
-    // Retrieve the existing associated Windows Live ID account(s) for the current Drupal User from authmap table based on Drupal User ID. 
-    $result = db_query("SELECT * FROM {authmap} WHERE module='windowslive' AND uid = :uid", array(':uid' => $account->uid));
-    
-    foreach ($result as $identity) {
-        $rows[] = array($identity->authname, l(t('Delete'), 'user/'. $account->uid .'/windowslive/delete/'.  $identity->aid));
-    }
 
-    $output = theme('table', array('header' => $header, 'rows' => $rows));
-    
-    // If there is no Windows Live ID account(s) associated with the current Drupal User then display the appropriate message and 
-    // display the link to 'Activate Windows Live ID'
-    if (!$rows) {
-        $output .= t('You can click on the below link to enable your account to use Windows Live ID log in to this site.<br/>');
+    $rows = array();
+
+    // Retrieve the existing associated Windows Live ID account(s) for the current Drupal User from authmap table based on Drupal User ID.
+    $result = db_query("SELECT * FROM {authmap} WHERE module='windowslive' AND uid = :uid", array(':uid' => $account->uid));
+
+    // If there is no Windows Live ID account(s) associated with the current Drupal User then display the appropriate message
+    if ($result->rowCount() == 0) {
+        // display the link to 'Activate Windows Live ID'
+        $output = t('You can click on the below link to enable your account to use Windows Live ID log in to this site.<br/>');
         $output .= windowslive_user_activate_link(t('Activate Windows Live ID'));
-    }    
+    } else {
+        $output = t('You can click on the below link to remove Windows Live ID association with your account.<br/>');
+        foreach ($result as $identity) {
+            $output .= l(t('Remove Windows Live ID association'), 'user/'. $account->uid .'/windowslive/delete/'.  $identity->aid) . '<br/>';
+        }
+    }
     
     return $output;
 }
@@ -435,7 +428,7 @@ function windowslive_user_delete_form_submit($form, &$form_state) {
         ->condition('module', 'windowslive')
         ->execute();
     if ($query) {
-        drupal_set_message(t('Windows Live ID deleted.'));
+        drupal_set_message(t('Windows Live ID association removed.'));
     }
     $form_state['redirect'] = 'user/' . $form_state['build_info']['args'][0]->uid . '/windowslive';
 }
